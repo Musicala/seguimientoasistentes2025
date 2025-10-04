@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Asistentes por Clase · Musicala</title>
+  <style>
+    :root{
+      --mozart:#0C41C4; --beethoven:#680DBF; --brahms:#CE0071;
+      --bg:#F4F6FB; --card:#FFFFFF; --line:#E6E8F0; --text:#1F2937; --muted:#8A94A6;
+    }
+    *{box-sizing:border-box}
+    body{
+      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      background:linear-gradient(135deg, rgba(12,65,196,.06), rgba(104,13,191,.06));
+      color:var(--text); margin:0;
+    }
+    .header{
+      background:linear-gradient(90deg, var(--mozart), var(--beethoven));
+      color:#fff; text-align:center; padding:22px;
+      font-size:24px; font-weight:800; letter-spacing:.2px;
+      border-bottom:4px solid var(--brahms);
+    }
+    .container{
+      max-width:1200px; margin:28px auto; padding:20px;
+      background:var(--card); border-radius:16px;
+      box-shadow:0 10px 30px rgba(12,65,196,.08), 0 6px 16px rgba(0,0,0,.06)
+    }
+    .filters{
+      display:grid; grid-template-columns:repeat(3, minmax(220px,1fr));
+      gap:16px; margin-bottom:14px
+    }
+    .filter-group{ display:flex; flex-direction:column; gap:6px; position:relative }
+    .filter-group label{ font-weight:800; font-size:13px; color:#0f1a2b; letter-spacing:.3px }
+
+    select, .dropdown-toggle{
+      padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:#FAFBFF;
+      font-size:16px; outline:none; width:100%;
+    }
+    select:focus, .dropdown-toggle:focus{ border-color:var(--mozart); box-shadow:0 0 0 3px rgba(12,65,196,.15) }
+    .dropdown-toggle{ display:flex; align-items:center; justify-content:space-between; cursor:pointer }
+
+    /* Menú con buscador + checks */
+    .dropdown-menu{
+      position:absolute; z-index:20; top:100%; left:0; right:0; margin-top:6px;
+      background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 30px rgba(0,0,0,.12);
+      max-height:320px; overflow:auto; padding:10px; display:none;
+    }
+    .dropdown-menu.open{ display:block }
+    .menu-search{
+      position:sticky; top:0; background:#fff; padding-bottom:8px; margin-bottom:8px;
+      border-bottom:1px solid var(--line);
+    }
+    .menu-search input{
+      width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:10px; background:#FAFBFF;
+      font-size:14px;
+    }
+    .menu-search input:focus{ border-color:var(--mozart); box-shadow:0 0 0 3px rgba(12,65,196,.12); outline:none }
+
+    .check{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 10px; border:1px solid var(--line); border-radius:999px; background:#fff; margin:6px 6px 0 0;
+      white-space:nowrap; font-size:14px;
+    }
+    .check input{ accent-color:var(--mozart); width:16px; height:16px }
+    .badge{ font-size:12px; padding:2px 8px; border-radius:999px; background:#EEF2FF; color:#3B43A5; font-weight:700 }
+
+    .results-header{
+      display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+      margin-top:6px; margin-bottom:6px;
+    }
+    .title{
+      font-weight:900; font-size:18px;
+      background:linear-gradient(90deg,var(--mozart),var(--beethoven));
+      -webkit-background-clip:text; background-clip:text; color:transparent;
+      display:flex; align-items:center; gap:8px;
+    }
+
+    .attendees{
+      display:flex; flex-wrap:wrap; gap:8px;
+      padding:10px; border:1px solid var(--line); border-radius:12px; background:#fff;
+      min-height:52px;
+    }
+    .chip{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:8px 12px; border:1px solid var(--line); border-radius:999px; background:#fff;
+      box-shadow:0 2px 8px rgba(0,0,0,.04);
+      font-weight:600; font-size:14px; cursor:pointer;
+    }
+    .chip:before{
+      content:""; width:8px; height:8px; border-radius:999px;
+      background:linear-gradient(90deg,var(--mozart),var(--beethoven));
+      box-shadow:0 0 0 2px rgba(12,65,196,.18);
+    }
+    .empty{ color:var(--muted); font-size:14px; padding:12px }
+    .status{ margin-top:10px; font-size:12px; color:var(--muted) }
+
+    @media (max-width:980px){ .filters{ grid-template-columns:repeat(2,1fr) } }
+    @media (max-width:600px){ .filters{ grid-template-columns:1fr } }
+  </style>
+</head>
+<body>
+
+  <div class="header">Asistentes por Clase · Musicala</div>
+
+  <div class="container">
+    <div class="filters">
+      <div class="filter-group">
+        <label for="yearSelect">📅 Año</label>
+        <select id="yearSelect">
+          <option value="">--Seleccionar--</option>
+        </select>
+      </div>
+
+      <div class="filter-group" id="serviceGroup">
+        <label>🎛️ Servicio <span class="badge" id="srvCount">0</span></label>
+        <button class="dropdown-toggle" id="serviceToggle">Selecciona servicio(s) ▾</button>
+        <div id="serviceMenu" class="dropdown-menu"></div>
+      </div>
+
+      <div class="filter-group" id="hourGroup">
+        <label>🕓 Hora <span class="badge" id="hourCount">0</span></label>
+        <button class="dropdown-toggle" id="hourToggle">Selecciona hora(s) ▾</button>
+        <div id="hourMenu" class="dropdown-menu"></div>
+      </div>
+    </div>
+
+    <div class="results-header">
+      <div class="title">👥 Asistentes</div>
+      <span class="badge" id="countBadge">0</span>
+    </div>
+
+    <div id="attendeesBox" class="attendees">
+      <div class="empty">Selecciona año, servicio(s) y hora(s) para ver la lista.</div>
+    </div>
+
+    <div id="status" class="status"></div>
+  </div>
+
+  <!-- URL pública del Callcenter (ajústala a tu ruta real en GH Pages) -->
+  <script>
+    window.CALLCENTER_URL = 'https://musicala.github.io/basededatosmusicala/callcenter/';
+  </script>
+
+  <script src="app.js"></script>
+</body>
+</html>
