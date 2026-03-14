@@ -31,6 +31,90 @@ const FICHA_COL = {
 };
 
 /* ===========================
+   Estados (orden + colores)
+   Entre menor rank, más arriba sale (más urgente)
+=========================== */
+const ESTADO_RULES = [
+  // 🔵 Activo no registro (más llamativo pero no "alarma roja")
+  { key: "activo no registro",  match: /activo\s+no\s+registro/i,      rank: 0,  dot: "dot-blue",    pill: "pill-blue" },
+
+  // 🟠 Activo en pausa (todavía activo)
+  { key: "activo en pausa",     match: /activo\s+en\s+pausa/i,         rank: 1,  dot: "dot-orange",  pill: "pill-orange" },
+
+  // 🟡 Inactivo en pausa (ya está más cerca de irse)
+  { key: "inactivo en pausa",   match: /inactivo\s+en\s+pausa/i,       rank: 2,  dot: "dot-yellow",  pill: "pill-yellow" },
+
+  // 🔴 Inactivos (todo lo que sea inactivo, rojo)
+  { key: "inactivo lejano",     match: /inactivo\s+lejano/i,           rank: 3,  dot: "dot-red",     pill: "pill-red" },
+  { key: "inactivo extendido",  match: /inactivo\s+extendido/i,        rank: 4,  dot: "dot-red",     pill: "pill-red" },
+  { key: "inactivo historico",  match: /inactivo\s+hist[oó]rico/i,     rank: 5,  dot: "dot-red",     pill: "pill-red" },
+
+  // Gris para exestudiante
+  { key: "exestudiante",        match: /exestudiante/i,                rank: 6,  dot: "dot-gray",    pill: "pill-gray" },
+
+  // 🟢 Activo normal
+  { key: "activo",              match: /^activo$/i,                    rank: 7,  dot: "dot-green",   pill: "pill-green" },
+];
+
+function getEstadoInfo(estadoRaw){
+  const estado = (estadoRaw || "").trim();
+  const hit = ESTADO_RULES.find(r => r.match.test(estado));
+  return hit
+    ? { estado, rank: hit.rank, dot: hit.dot, pill: hit.pill }
+    : { estado, rank: 50, dot: "dot-muted", pill: "pill-muted" };
+}
+// ===========================
+// Agrupación por Estado + colapsables
+// ===========================
+const ESTADO_GROUPS = [
+  { id: "g_activo_no_reg", label: "Activo no registro",  order: 0 },
+  { id: "g_activo_pausa",  label: "Activo en pausa",     order: 1 },
+  { id: "g_inac_pausa",    label: "Inactivo en pausa",   order: 2 },
+  { id: "g_inactivos",     label: "Inactivos",           order: 3 }, // agrupa lejano/extendido/histórico
+  { id: "g_ex",            label: "Exestudiante",        order: 4 },
+  { id: "g_activo",        label: "Activo",              order: 5 },
+  { id: "g_sin",           label: "Sin estado",          order: 99 },
+];
+
+const COLLAPSE_KEY = "seguimiento_collapse_v1";
+let COLLAPSE_STATE = null;
+
+function loadCollapse(){
+  if (COLLAPSE_STATE) return COLLAPSE_STATE;
+  try{
+    COLLAPSE_STATE = JSON.parse(localStorage.getItem(COLLAPSE_KEY) || "{}") || {};
+  }catch(e){
+    COLLAPSE_STATE = {};
+  }
+  return COLLAPSE_STATE;
+}
+function saveCollapse(){
+  try{ localStorage.setItem(COLLAPSE_KEY, JSON.stringify(COLLAPSE_STATE || {})); }catch(e){}
+}
+function isCollapsed(groupId){
+  const st = loadCollapse();
+  return !!st[groupId];
+}
+function toggleCollapsed(groupId){
+  const st = loadCollapse();
+  st[groupId] = !st[groupId];
+  COLLAPSE_STATE = st;
+  saveCollapse();
+}
+
+function groupIdFromEstado(estadoRaw){
+  const s = (estadoRaw || "").trim();
+
+  if (/activo\s+no\s+registro/i.test(s)) return "g_activo_no_reg";
+  if (/activo\s+en\s+pausa/i.test(s)) return "g_activo_pausa";
+  if (/inactivo\s+en\s+pausa/i.test(s)) return "g_inac_pausa";
+  if (/inactivo\s+(lejano|extendido|hist[oó]rico)/i.test(s)) return "g_inactivos";
+  if (/exestudiante/i.test(s)) return "g_ex";
+  if (/^activo$/i.test(s)) return "g_activo";
+
+  return "g_sin";
+}
+/* ===========================
    State
 =========================== */
 let DATA = {};               // year -> records[]
@@ -349,7 +433,6 @@ function clearAllFilters(){
   selDays.clear(); selMonths.clear(); selServices.clear(); selHours.clear(); selTeachers.clear(); selPays.clear();
   updateCountsAndLabels();
   renderFiltered();
-  // si había un estudiante seleccionado, refresca su ficha con filtros limpios
   if (lastSelectedStudent) renderSideFicha(lastSelectedStudent);
 }
 
@@ -423,30 +506,99 @@ function renderFiltered(){
     return okDay && okMonth && okSrv && okHour && okTeacher && okPay;
   });
 
-  const names = [...new Set(filtered.map(r => r.nombre).filter(Boolean))]
-    .sort((a,b)=>a.localeCompare(b,'es'));
+  const uniqueNames = [...new Set(filtered.map(r => r.nombre).filter(Boolean))];
 
-  countBadge.textContent = String(names.length);
+  // items con estado + prioridad + grupo
+  const items = uniqueNames.map(n => {
+    const row = EST_INDEX ? (EST_INDEX.get(normName(n)) || null) : null;
+    const estadoRaw = row ? (row[FICHA_COL.estado] || "").trim() : "";
+    const info = getEstadoInfo(estadoRaw);
+    const groupId = groupIdFromEstado(estadoRaw);
+    return { name: n, estado: info.estado, rank: info.rank, dot: info.dot, groupId };
+  });
 
-  if (!names.length){
+  // orden global por prioridad y nombre (para que el total sea consistente)
+  items.sort((a,b) => (a.rank - b.rank) || a.name.localeCompare(b.name,'es'));
+
+  countBadge.textContent = String(items.length);
+
+  if (!items.length){
     attendeesBox.innerHTML = `<div class="empty">No hay registros para los filtros seleccionados.</div>`;
     return;
   }
 
+  // agrupar
+  const groups = new Map();
+  for (const it of items){
+    if (!groups.has(it.groupId)) groups.set(it.groupId, []);
+    groups.get(it.groupId).push(it);
+  }
+
+  // render secciones
+  attendeesBox.innerHTML = "";
   const frag = document.createDocumentFragment();
-  names.forEach(n => {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip";
-    b.textContent = n;
-    b.addEventListener("click", () => {
-      lastSelectedStudent = n;
-      renderSideFicha(n);
+
+  const orderedGroups = ESTADO_GROUPS
+    .filter(g => groups.has(g.id))
+    .sort((a,b) => a.order - b.order);
+
+  orderedGroups.forEach(g => {
+    const list = groups.get(g.id) || [];
+    const collapsed = isCollapsed(g.id);
+
+    const sec = document.createElement("section");
+    sec.className = "estado-section";
+
+    const header = document.createElement("button");
+    header.type = "button";
+    header.className = "estado-header";
+    header.setAttribute("aria-expanded", collapsed ? "false" : "true");
+    header.innerHTML = `
+      <span class="estado-title">${g.label}</span>
+      <span class="estado-meta">${list.length}</span>
+      <span class="estado-chevron">${collapsed ? "▸" : "▾"}</span>
+    `;
+
+    const body = document.createElement("div");
+    body.className = "estado-body";
+    body.style.display = collapsed ? "none" : "";
+
+    header.addEventListener("click", () => {
+      toggleCollapsed(g.id);
+      const nowCollapsed = isCollapsed(g.id);
+      header.setAttribute("aria-expanded", nowCollapsed ? "false" : "true");
+      body.style.display = nowCollapsed ? "none" : "";
+      header.querySelector(".estado-chevron").textContent = nowCollapsed ? "▸" : "▾";
     });
-    frag.appendChild(b);
+
+    const chips = document.createDocumentFragment();
+    list.forEach(item => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.className = "chip chip-student";
+      b.setAttribute("data-estado", item.estado || "");
+      b.setAttribute("title", item.estado ? `Estado: ${item.estado}` : "Estado: (sin dato)");
+
+      b.innerHTML = `
+        <span class="dot ${item.dot}" aria-hidden="true"></span>
+        <span class="chip-name">${item.name}</span>
+      `;
+
+      b.addEventListener("click", () => {
+        lastSelectedStudent = item.name;
+        renderSideFicha(item.name);
+      });
+
+      chips.appendChild(b);
+    });
+
+    body.appendChild(document.createElement("div")).appendChild(chips);
+
+    sec.appendChild(header);
+    sec.appendChild(body);
+    frag.appendChild(sec);
   });
 
-  attendeesBox.innerHTML = "";
   attendeesBox.appendChild(frag);
 }
 
@@ -466,6 +618,15 @@ function getStudentHistoryForYear(studentName, year){
   const hits = base.filter(r => normName(r.nombre) === key);
   hits.sort((a,b) => (b._date?.getTime?.() || -Infinity) - (a._date?.getTime?.() || -Infinity));
   return hits;
+}
+
+function applyEstadoPill(estadoRaw){
+  // limpia clases previas
+  sideEstadoPill.classList.remove(
+    "pill-red","pill-orange","pill-amber","pill-yellow","pill-blue","pill-indigo","pill-green","pill-gray","pill-muted"
+  );
+  const info = getEstadoInfo(estadoRaw);
+  sideEstadoPill.classList.add(info.pill);
 }
 
 async function renderSideFicha(studentName){
@@ -497,6 +658,11 @@ async function renderSideFicha(studentName){
     if (estado){
       sideEstadoPill.style.display = "inline-flex";
       sideEstadoTxt.textContent = `Estado: ${estado}`;
+      applyEstadoPill(estado);
+    } else {
+      sideEstadoPill.style.display = "inline-flex";
+      sideEstadoTxt.textContent = `Estado: (sin dato)`;
+      applyEstadoPill("");
     }
 
     // grid fields
@@ -666,7 +832,6 @@ yearSelect.addEventListener("change", () => {
   updateCountsAndLabels();
   renderFiltered();
 
-  // refresca ficha si había uno seleccionado
   if (lastSelectedStudent) renderSideFicha(lastSelectedStudent);
 
   t(`Listo. ${base.length} registros cargados para ${y}.`);
@@ -685,6 +850,9 @@ async function init(){
     opt.value = y; opt.textContent = y;
     yearSelect.appendChild(opt);
   }
+
+  // ✅ precarga estudiantes una vez (para orden + bolitas)
+  try { await ensureStudents(); } catch(e) { /* no bloquea */ }
 
   if (years.length){
     yearSelect.value = years[0]; // 2026

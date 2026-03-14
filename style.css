@@ -512,3 +512,85 @@ select:focus, .dd-toggle:focus{
   .filters{ grid-template-columns:1fr; }
   .grid{ grid-template-columns:1fr; }
 }
+/* ===========================
+   Chips con bolita por Estado
+=========================== */
+.chip.chip-student{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+
+.chip .chip-name{
+  display: inline-block;
+  line-height: 1.2;
+}
+
+.dot{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex: 0 0 10px;
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.04);
+}
+
+/* Urgentes */
+.dot-red{    background: #ef4444; }
+.dot-orange{ background: #f97316; }
+.dot-amber{  background: #f59e0b; }
+
+/* Menos urgentes */
+.dot-yellow{ background: #eab308; }
+.dot-blue{   background: #3b82f6; }
+.dot-indigo{ background: #6366f1; }
+
+.dot-green{  background: #22c55e; }
+
+/* Default */
+.dot-gray{   background: #9ca3af; }
+.dot-muted{  background: #cbd5e1; }
+
+/* ===========================
+   Pill de Estado en la ficha
+   (si tu pill ya existe, esto solo le da color)
+=========================== */
+#sideEstadoPill{ gap: 8px; }
+
+.pill-red{    background:#fee2e2; color:#991b1b; }
+.pill-orange{ background:#ffedd5; color:#9a3412; }
+.pill-amber{  background:#fef3c7; color:#92400e; }
+.pill-yellow{ background:#fef9c3; color:#854d0e; }
+.pill-blue{   background:#dbeafe; color:#1e40af; }
+.pill-indigo{ background:#e0e7ff; color:#3730a3; }
+.pill-green{  background:#dcfce7; color:#166534; }
+.pill-gray{   background:#f3f4f6; color:#374151; }
+.pill-muted{  background:#f1f5f9; color:#334155; }
+
+/* Secciones colapsables por Estado */
+.estado-section{ margin: 10px 0; }
+.estado-header{
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.7);
+  cursor: pointer;
+}
+.estado-title{ font-weight: 700; }
+.estado-meta{
+  font-size: 12px;
+  opacity: .75;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.8);
+}
+.estado-chevron{ opacity: .7; }
+
+.estado-body{ padding: 10px 6px 2px; }
+.estado-body > div{ display: flex; flex-wrap: wrap; gap: 8px; }
